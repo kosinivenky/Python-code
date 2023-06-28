@@ -1,0 +1,79 @@
+import csv
+import pandas as pd
+from playwright.sync_api import sync_playwright
+
+def find_linkedin_urls(companies_csv):
+    # Read the CSV file using pandas
+    df = pd.read_csv(companies_csv)
+
+    # Create a new column to store LinkedIn URLs
+    df['LinkedIn URL'] = ''
+
+    # Scrape LinkedIn URLs for each company
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        context = browser.new_context()
+        page = context.new_page()
+        
+        for index, row in df.iterrows():
+            company_name = row['Company Name']
+            
+            # Search for the company on LinkedIn
+            search_url = f'https://www.linkedin.com/search/results/companies/?keywords={company_name}'
+            page.goto(search_url)
+            
+            # Get the first search result
+            first_result = page.query_selector('.search-result__result-link')
+            if first_result:
+                linkedin_url = first_result.get_attribute('href')
+                df.at[index, 'LinkedIn URL'] = linkedin_url
+            
+        browser.close()
+
+    # Save the updated DataFrame to a new CSV file
+    output_csv = 'companies_with_linkedin_urls.csv'
+    df.to_csv(output_csv, index=False)
+    return output_csv
+
+def find_employee_count(companies_csv):
+    # Read the CSV file using pandas
+    df = pd.read_csv(companies_csv)
+
+    # Create a new column to store employee counts
+    df['Employee Count'] = ''
+
+    # Scrape employee counts from LinkedIn
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        context = browser.new_context()
+        page = context.new_page()
+
+        for index, row in df.iterrows():
+            linkedin_url = row['LinkedIn URL']
+            
+            # Visit the LinkedIn URL of the company
+            page.goto(linkedin_url)
+            
+            # Find and extract the employee count
+            employee_count = ''
+            employee_count_element = page.query_selector('.org-top-card-summary__info-item')
+            if employee_count_element:
+                employee_count = employee_count_element.text_content().strip()
+                df.at[index, 'Employee Count'] = employee_count
+
+        browser.close()
+
+    # Save the updated DataFrame to the original CSV file
+    df.to_csv(companies_csv, index=False)
+
+if __name__ == '__main__':
+    # Example usage as a CLI program
+    csv_file = 'company_names.csv'
+
+    # Step 1: Find LinkedIn URLs
+    output_csv = find_linkedin_urls(csv_file)
+    print(f'LinkedIn URLs saved to: {output_csv}')
+
+    # Step 2: Find employee counts
+    find_employee_count(output_csv)
+    print('Employee counts updated.')
